@@ -2,6 +2,8 @@ from .domain_layout import DomainLayout
 from ..dynmodels.dynamic_model import DynamicModel
 from ..storage.saved_solution import SavedSolution
 from .segment_trapz import SegmentTrapz
+from .segment_hermite_simpson import SegmentHermiteSimpson
+from .segment_clenshaw_curtis import SegmentClenshawCurtis
 from .node import Node
 from .segment import Segment
 from abc import ABC, abstractmethod
@@ -184,11 +186,16 @@ class Domain():
         width: float = float(width)
         if method == 'trapz':
             if order == 1:
-                new_seg = self._build_segment_trapz(width)
+                self._build_segment_trapz(width)
             else:
                 raise ValueError('Trapz segment has to be constructed with order 1')
-        elif method == 'cheb':
-            new_seg = self._build_segment_cheb(width, order)
+        elif method == 'hermite-simpson':
+            if order == 2:
+                self._build_segment_hsimpson(width)
+            else:
+                raise ValueError('Hermite-Simpson requires quadratic control interpolation (order=2)')
+        elif method == 'chebyshev' or method == 'clenshaw-curtis':
+            self._build_segment_cheb(width, order)
 
     def _build_segment_trapz(self, width: float):
         '''
@@ -206,8 +213,40 @@ class Domain():
         new_seg = SegmentTrapz(nodes, self.model)
         self.segments.append(new_seg)
 
+    def _build_segment_hsimpson(self, width: float):
+        '''
+        Add a Hermite-Simpson segment
+        '''
+        if len(self.nodes) == 0:
+            # No nodes here yet
+            n0 = self._make_node(0.0, True)
+        else:
+            n0 = self.nodes[-1]
+        last_pos = n0.get_pos()
+        n1 = self._make_node(last_pos+0.5*width, True)
+        n2 = self._make_node(last_pos+1.0*width, True)
+        nodes = [n0, n1, n2]
+        new_seg = SegmentHermiteSimpson(nodes, self.model)
+        self.segments.append(new_seg)
+
     def _build_segment_cheb(self, width: float, order: int):
-        return None
+        """
+        Add a Hermite-Simpson segment
+        """
+        if len(self.nodes) == 0:
+            # No nodes here yet
+            n0 = self._make_node(0.0, True)
+        else:
+            n0 = self.nodes[-1]
+        last_pos = n0.get_pos()
+        cpts = np.polynomial.chebyshev.chebpts2(order+1)
+        cpts = last_pos + 0.5*width*(cpts+1.0)
+        coll_nodes = [n0]
+        for new_pos in cpts[1:]:
+            new_node = self._make_node(new_pos, True)
+            coll_nodes.append(new_node)
+        new_seg = SegmentClenshawCurtis(coll_nodes, self.model)
+        self.segments.append(new_seg)
 
     def plot_state(self, state: np.ndarray, save_path: str):
         pass

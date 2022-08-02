@@ -70,7 +70,7 @@ class CollocationProblem(ABC):
         num_constr = self.domain.get_num_constraints()
         clb, cub = np.zeros(num_constr), np.zeros(num_constr)
         constr = optimize.NonlinearConstraint(self.constraints, clb, cub, jac=self.constraints_jac)
-        optimiser_options = {'maxiter': max_iter, 'disp': True, 'verbose': 2, 'xtol': 1e-6}
+        optimiser_options = {'maxiter': max_iter, 'disp': True, 'verbose': 2, 'xtol': 1e-10}
         opts = {}
         opts['method'] = 'trust-constr'
         opts['bounds'] = bounds
