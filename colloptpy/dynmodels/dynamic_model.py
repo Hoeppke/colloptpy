@@ -75,24 +75,15 @@ class DynamicModel(ABC):
     def get_num_params(self) -> int:
         return self.num_params
 
-    def get_states(self, need_grad=True) -> th.Tensor:
-        return self._state_th
+    def get_state_names(self) -> list[str]:
+        return [var.get_name() for var in self.states]
 
-    def get_controls(self, need_grad=True) -> th.Tensor:
-        return self._control_th
+    def get_ctrl_names(self) -> list[str]:
+        return [var.get_name() for var in self.ctrls]
 
-    def get_params(self, need_grad=True) -> th.Tensor:
-        return self._params_th
+    def get_var_names(self) -> list[str]:
+        return self.get_state_names() + self.get_ctrl_names()
 
     @abstractmethod
-    def forward(self, states: th.Tensor, controls: th.Tensor) -> th.Tensor:
+    def forward(self, states: th.Tensor, controls: th.Tensor, xpos: th.Tensor) -> th.Tensor:
         pass 
-
-    def forward_noparam_base(self, state_ctrl: th.Tensor) -> th.Tensor:
-        states = state_ctrl[0:self.num_states].reshape((1, self.num_states))
-        ctrls = state_ctrl[self.num_states:].reshape((1, self.num_controls))
-        out_vals = self.forward_noparam(states, ctrls)[0, :]
-        return out_vals
-
-    def forward_jac(self, state_ctrl: th.Tensor) -> th.Tensor:
-        return functorch.jacfwd(self.forward_noparam_base)(state_ctrl)

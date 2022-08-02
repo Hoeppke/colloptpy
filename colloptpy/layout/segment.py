@@ -1,11 +1,11 @@
+from ..dynmodels.dynamic_model import DynamicModel
+from .node import Node
+from abc import ABC, abstractmethod
+from functorch import jacrev
+from typing import List
 import numpy as np
 import scipy.sparse as sparse
-from typing import List
-from ..dynmodels.dynamic_model import DynamicModel
-from abc import ABC, abstractmethod
 import torch as th
-from .node import Node
-from functorch import jacrev
 
 mtx = th.tensor
 
@@ -16,6 +16,7 @@ class Segment(ABC):
         self.model = model
         self.width = nodes[-1].get_pos() - nodes[0].get_pos()
         self.nidxs = [node.get_idx() for node in self.nodes]
+        self.npos_vec = np.array([node.get_pos() for node in self.nodes])
         self.jac_x = jacrev(self.eval_constraints, argnums=0)
         self.jac_u = jacrev(self.eval_constraints, argnums=1)
         self._setup_indices()
@@ -66,6 +67,7 @@ class Segment(ABC):
         Compute the forward of the model while transforming the parameters
         into a more convenient matrix format.
         """
+        time_vec = th.tensor(self.npos_vec, dtype=x_vec.dtype, device=x_vec.device)
         num_x_nodes = len(self.nodes)
         num_u_nodes = self.get_num_ctrl_nodes()
         num_states = self.model.get_num_states()
@@ -74,8 +76,14 @@ class Segment(ABC):
         x_mtx = th.reshape(x_vec, (num_x_nodes, num_states))
         u_mtx = th.reshape(u_vec, (num_u_nodes, num_ctrls))
         x_mtx_forward = x_mtx[ctrl_node_idxs, :]
-        f_mtx = self.model.forward(x_mtx_forward, u_mtx)
+        f_mtx = self.model.forward(x_mtx_forward, u_mtx, time_vec)
         return x_mtx, u_mtx, f_mtx
+
+    def estimate_state_err(self, x_vec: mtx, u_vec: mtx) -> mtx:
+        """
+        estimate the state errors on this segment.
+        """
+        pass
 
     def eval_jacobian(self, x_vec: mtx, u_vec: mtx) -> sparse.csr_matrix:
         '''
@@ -84,8 +92,7 @@ class Segment(ABC):
         my_jx = self.jac_x(x_vec, u_vec).detach().cpu().numpy()
         my_ju = self.jac_u(x_vec, u_vec).detach().cpu().numpy()
         # Assemble the Jacobian matrix:
-        jac_triples = []
-        num_rows, num_cols = my_jx.shape[0], self.num_total_vars
+        num_rows = my_jx.shape[0]
         state_idxs = self.state_idxs.ravel()
         ctrl_idxs = self.ctrl_idxs.ravel()
         # A little inefficient with double for loop
@@ -94,11 +101,11 @@ class Segment(ABC):
         cols = []
         for ridx in range(num_rows):
             # State jacobian
-            rows.extend([ridx for k in state_idxs])
+            rows.extend([ridx]*len(state_idxs))
             cols.extend(state_idxs)
             data.extend(list(my_jx[ridx, :]))
             # Ctrl jacobian
-            rows.extend([ridx for k in ctrl_idxs])
+            rows.extend([ridx]*len(ctrl_idxs))
             cols.extend(ctrl_idxs)
             data.extend(list(my_ju[ridx, :]))
         rows = np.array(rows, dtype=np.int64)

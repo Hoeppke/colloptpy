@@ -31,7 +31,7 @@ class PendulumDynamics(DynamicModel):
         """
         return 'time'
 
-    def forward(self, x_mtx: th.tensor, u_mtx: th.tensor):
+    def forward(self, x_mtx: th.tensor, u_mtx: th.tensor, t_mtx: th.tensor):
         """
         Evaluate the cart-pole dynamics:
             http://www.matthewpeterkelly.com/tutorials/cartPole/index.html
