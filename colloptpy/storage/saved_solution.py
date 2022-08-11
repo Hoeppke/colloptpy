@@ -63,7 +63,7 @@ class SavedSolution():
             return self.values[:, col_idx]
         elif isinstance(var, list):
             return [self.get_values(v) for v in var]
-        return None
+        raise ValueError('Undefined variable:', var)
 
     def get_values_interp(self, var: str, ivar:str, ivals: List[float]):
         '''

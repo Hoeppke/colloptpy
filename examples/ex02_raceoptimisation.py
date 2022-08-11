@@ -185,10 +185,10 @@ def main():
     save_folder = './solutions/vehicle_trajectory/' 
     track = example_track()
     layout = DomainLayout()
-    num = 20
-    for k in range(num):
+    num = 10
+    for _ in range(num):
         width = track.get_length() / num
-        layout.add_segment(width, 'trapz', 1)
+        layout.add_segment(width, 'clenshaw-curtis', 4)
     track_dict = {}
     # Create a track dictionary here!
     model = VehicleDyanmics(track)

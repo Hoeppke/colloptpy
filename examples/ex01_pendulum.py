@@ -157,8 +157,8 @@ class CartPoleProblem(CollocationProblem):
 def main():
     save_folder = './solutions/cartpole/' 
     layout = DomainLayout()
-    num = 50
-    for k in range(num):
+    num = 10
+    for _ in range(num):
         width = 1.0 / num
         layout.add_segment(width, 'trapz', 1)
     model = PendulumDynamics()

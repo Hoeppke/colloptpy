@@ -9,6 +9,7 @@ from scipy import sparse
 from scipy import optimize
 from scipy import interpolate
 from abc import ABC, abstractmethod
+from typing import Union
 import os
 
 
@@ -154,3 +155,31 @@ class CollocationProblem(ABC):
         dframe: pd.DataFrame = sol.to_dataframe()
         dframe.set_index('node_idx')
         dframe.to_csv(fpath, index=False) 
+
+    def load_solution(self, sol: Union[SavedSolution, str]): 
+        """
+        Load a saved solution
+        """
+        if isinstance(sol, str):
+            my_sol: SavedSolution = SavedSolution.load_csv(sol)
+        else:
+            my_sol: SavedSolution = sol
+        # Loaded saved solution
+        xvec = np.zeros(self.domain.get_num_problem_vars(), dtype=np.float64)
+        # Iterate over state variables
+        for var in self.model.states:
+            # State variables
+            vname = var.get_name()
+            vals = my_sol.get_values(vname)
+            idxs = self.domain.state_imtx[:, var.get_idx()]
+            xvec[idxs] = vals
+        # Iterate over control variables
+        ctrl_nodes = self.domain.get_ctrl_node_idxs()
+        for var in self.model.ctrls:
+            # Control values
+            vals = my_sol.get_values(var.get_name())
+            valid_vals = vals[ctrl_nodes]
+            # select the valid control idxs
+            idxs = self.domain.ctrl_imtx[:, var.get_idx()]
+            xvec[idxs] = vals
+        return xvec 
