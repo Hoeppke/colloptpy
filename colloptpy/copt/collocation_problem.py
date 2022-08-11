@@ -164,6 +164,9 @@ class CollocationProblem(ABC):
             my_sol: SavedSolution = SavedSolution.load_csv(sol)
         else:
             my_sol: SavedSolution = sol
+        # Interpolate the solution onto the required grid
+        node_pos_vec = self.domain.get_node_pos_vec()
+        my_sol = my_sol.interpolate(self.model.get_main_variable(), node_pos_vec) 
         # Loaded saved solution
         xvec = np.zeros(self.domain.get_num_problem_vars(), dtype=np.float64)
         # Iterate over state variables
