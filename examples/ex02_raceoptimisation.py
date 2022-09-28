@@ -143,6 +143,16 @@ class VehicleDomain(Domain):
         state, ctrl = np.array(state_vals), np.array(ctrl_vals)
         return state, ctrl
 
+    def get_num_constraints(self) -> int:
+        num_nodes = len(self.nodes)
+        return super().get_num_constraints() + num_nodes
+
+    def eval_constraints(self) -> np.ndarray:
+        pass
+
+    def eval_constraint_jac(self) -> np.ndarray:
+        pass
+
 class VehicleTrajectoryProblem(CollocationProblem):
     
     def __init__(self, domain: VehicleDomain, track: Track, save_folder):
@@ -151,7 +161,7 @@ class VehicleTrajectoryProblem(CollocationProblem):
 
     def objective_th(self, xvec_th: th.Tensor):
         """
-        Evaluate the objective function
+        Evaluate the time objective function
         """
         nodes_pos_list = [node.get_pos() for node in self.domain.nodes]
         dev, data_type = xvec_th.device, xvec_th.dtype

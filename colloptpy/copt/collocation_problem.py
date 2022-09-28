@@ -1,6 +1,7 @@
 from ..storage.saved_solution import SavedSolution
 from ..dynmodels.dynamic_model import DynamicModel
 from ..layout.domain import Domain
+import datetime as dt
 from pathlib import Path
 import pandas as pd
 import numpy as np
@@ -32,6 +33,7 @@ class CollocationProblem(ABC):
         # Setup paths
         self.save_path = Path(self.save_dir)
         self.save_path.mkdir(parents=True, exist_ok=True)
+        self.sol_times = []
 
     @abstractmethod
     def objective_th(self, xvec: th.tensor) -> th.tensor:
@@ -56,10 +58,41 @@ class CollocationProblem(ABC):
         cvec = cvec.detach().cpu().numpy()
         return cvec
 
+    def cviol_norm(self, cviol: np.ndarray):
+        num_rows = int(len(cviol) / self.model.get_num_states())
+        num_states = self.model.get_num_states()
+        cviol_mtx = cviol.reshape(num_rows, num_states)
+        seg_lengths = [seg.width for seg in self.domain.segments]
+        # Integrate each variable
+        var_norms = [np.dot(cviol_mtx[:, i]**2.0, seg_lengths)**0.5 for i in range(num_states)]
+        cviol_norm = np.linalg.norm(var_norms)
+        return cviol_norm
+
     def constraints_jac(self, xvec: np.ndarray) -> sparse.csr_matrix:
         xvec_th = th.tensor(xvec, requires_grad=True, device=self.device)
         cjac = self.domain.eval_constraint_jac(xvec_th)
         return cjac
+
+    def get_num_constraints(self) -> int:
+        return self.domain.get_num_constraints()
+
+    def record_solution(self, iter: int, x_vec: np.ndarray):
+        new_time = dt.datetime.now()
+        tflt = new_time.timestamp()
+        tstr = new_time.strftime('%Y-%m-%d %H:%M:%S.%f')
+        obj = self.objective(x_vec)
+        cviol_l1 = np.linalg.norm(self.constraints(x_vec), ord=1)
+        cviol_l2 = np.linalg.norm(self.constraints(x_vec), ord=2)
+        cviol_linf = np.linalg.norm(self.constraints(x_vec), ord=np.inf)
+        res_dict = {}
+        res_dict['iter'] = iter
+        res_dict['datetime'] = tstr
+        res_dict['timestamp'] = tflt
+        res_dict['objective'] = obj
+        res_dict['constraint_violation_l1'] = cviol_l1
+        res_dict['constraint_violation_l2'] = cviol_l2
+        res_dict['constraint_violation_linf'] = cviol_linf
+        self.sol_times.append(res_dict)
 
     def solve_problem(self, x0, max_iter=50):
         """
@@ -79,6 +112,7 @@ class CollocationProblem(ABC):
         opts['jac'] = self.objective_grad
         opts['options'] = optimiser_options
         opts['callback'] = self.save_solution_callback
+        self.record_solution(0, x0)
         res = optimize.minimize(self.objective, x0, **opts)
         return res
 
@@ -121,8 +155,13 @@ class CollocationProblem(ABC):
         Callback function to be used for saving intermediary solutions
         """
         nit = sol_state.nit
+        self.record_solution(nit, xvec)
         if nit % self.save_freq == 0:
             self.save_solution(xvec, nit)
+        # Save the solution times
+        times_fname = os.path.join(self.save_path, 'sol_times.csv')
+        data_pd = pd.DataFrame(self.sol_times)
+        data_pd.to_csv(times_fname, index=False)
 
     def save_solution(self, xvec: np.ndarray, nit: int):
         """
